@@ -1,0 +1,72 @@
+const { test, expect } = require('@playwright/test');
+
+// List of products to search
+const products = ['Mobile', 'Clothes', 'Cameras', 'Home Appliances', 'Medicines', 'TVs','XYZ','0123'];
+
+test.describe('Telemart Search Tests', () => {
+
+  // Function to browse the site (scroll top -> bottom)
+  async function browseSite(page) {
+    await page.goto('https://telemart.pk/', { waitUntil: 'load' });
+    await page.waitForTimeout(3000);
+
+    const totalHeight = await page.evaluate(() => document.body.scrollHeight);
+    for (let i = 0; i <= totalHeight; i += 500) {
+      await page.evaluate(y => window.scrollTo(0, y), i);
+      await page.waitForTimeout(500);
+    }
+
+    // Scroll back to top
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(500);
+
+    // Close popup if exists
+    const popup = page.locator('button[aria-label="Close"]');
+    if (await popup.isVisible()) {
+      await popup.click();
+      await page.waitForTimeout(500);
+    }
+  }
+
+  // Create a separate test for each product
+  for (const product of products) {
+    test(`Search for ${product} and verify results`, async ({ page }) => {
+
+      // 1. Browse the website (scroll)
+      await browseSite(page);
+
+      // 2. Focus and fill the search box
+      const searchBox = page.locator('input[placeholder*="What Are You Looking"]');
+      await searchBox.scrollIntoViewIfNeeded();
+      await searchBox.click();
+      await searchBox.fill(product);
+
+      // 3. Trigger Enter key properly
+      await page.evaluate(() => {
+        const input = document.querySelector('input[placeholder*="What Are You Looking"]');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        ['keydown', 'keyup'].forEach(eventType => {
+          const keyboardEvent = new KeyboardEvent(eventType, {
+            key: 'Enter',
+            code: 'Enter',
+            keyCode: 13,
+            which: 13,
+            bubbles: true
+          });
+          input.dispatchEvent(keyboardEvent);
+        });
+      });
+
+      // 4. Wait for search results to appear
+      const resultsSection = page.locator('div:has(a)');
+      await resultsSection.first().waitFor({ state: 'visible', timeout: 30000 });
+
+      // Optional: short wait to ensure all items render
+      await page.waitForTimeout(3000);
+
+      // 5. Verify results
+      await expect(resultsSection.first()).toBeVisible();
+    });
+  }
+
+});
